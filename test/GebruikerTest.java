@@ -1,5 +1,6 @@
+import org.junit.Test;
 import org.junit.jupiter.api.BeforeEach;
-import  org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class GebruikerTest {
@@ -8,7 +9,7 @@ public class GebruikerTest {
 
     @BeforeEach
     public void setup(){
-         gebruiker = new Gebruiker("Jan", 1);
+         gebruiker = new Gebruiker(1, "Jan");
     }
 
     @Test

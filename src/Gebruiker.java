@@ -2,7 +2,7 @@
         private int id;
         private String naam;
 
-        public Gebruiker(String naam, int id) {
+        public Gebruiker(int id, String naam) {
             this.naam = naam;
             this.id = id;
         }
