@@ -97,26 +97,25 @@ public class Main {
                                 break;
                             }
                         }
+
                         if (selectedEpic != null) {
+
                             selectedEpic.setChatroom(makeChat(selectedEpic.getChatroom().getChat_id()));
                             selectedEpic.toonChatroom();
-                            boolean texting = true;
-                            while (texting){
-                                System.out.println("Verstuur een bericht of type /back:");
+
+                            while (true){
+                                System.out.println("Verstuur een bericht of type /back om terug te gaan:");
                                 String berichtTekst = scanner.nextLine();
                                 if (berichtTekst.equals("/back")) {
-                                    texting = false;
                                     break;
+
                                 }
+
                                 ZonedDateTime tijdstip = ZonedDateTime.now();
                                 Bericht bericht = new Bericht(0, berichtTekst, gebruiker, tijdstip, selectedEpic.getChatroom().getChat_id());
                                 selectedEpic.getChatroom().slaBerichtOp(bericht);
                             }
-                            System.out.println("Verstuur nu een bericht of type /back:");
-                            String berichtTekst = scanner.nextLine();
-                            ZonedDateTime tijdstip = ZonedDateTime.now();
-                            Bericht bericht = new Bericht(0, berichtTekst, gebruiker, tijdstip, selectedEpic.getChatroom().getChat_id());
-                            getChatroom(selectedEpic.getChatroom().getChat_id()).slaBerichtOp(bericht);
+
 
                         } else {
                             System.out.println("Epic niet gevonden.");
