@@ -1,3 +1,7 @@
+
+
+import java.util.Scanner;
+
 public class Epic extends ScrumItem{
 
 
@@ -13,9 +17,12 @@ public class Epic extends ScrumItem{
     public void toonChatroom() {
         System.out.println("Chatroom voor epic: " + beschrijving);
         for (Bericht bericht : chatroom.getBerichten()) {
-            System.out.println(bericht.getTijdstip() + " - " + bericht.getAuteur().getNaam() + ": " + bericht.getTekst());
+
+            System.out.println(bericht.getTijdstipString() + " - " + bericht.getAuteur().getNaam() + ": " + bericht.getTekst());
         }
+
     }
+
 
     @Override
    public void voegUserToe(Chatroom chatroom){

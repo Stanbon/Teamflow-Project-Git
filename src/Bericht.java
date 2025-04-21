@@ -1,5 +1,6 @@
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class Bericht {
     private int b_id;
@@ -37,6 +38,11 @@ public class Bericht {
     }
     public ZonedDateTime getTijdstip() {
         return tijdstip;
+    }
+
+    public String getTijdstipString() {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm");
+        return tijdstip.format(formatter);
     }
     public void setTijdstip(ZonedDateTime tijdstip) {
         this.tijdstip = tijdstip;

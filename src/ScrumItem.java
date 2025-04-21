@@ -1,3 +1,5 @@
+
+
 public abstract class ScrumItem{
     protected int id;
     protected String beschrijving;
