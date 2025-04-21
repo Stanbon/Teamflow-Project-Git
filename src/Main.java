@@ -9,7 +9,8 @@ import java.util.Scanner;
 
 public class Main {
 
-    static ArrayList<ScrumItem> scrumItems;
+    static ArrayList<ScrumItem> epicList;
+    static ArrayList<ScrumItem> userStoryList;
 
     public static void main(String[] args) throws SQLException {
         Scanner scanner = new Scanner(System.in);
@@ -23,8 +24,8 @@ public class Main {
             while (running) {
                 System.out.println("Voer het ID van een epic in  of type /addEpic om een nieuwe epic toe te voegen:\n" +
                         "type /exit om het programma af te sluiten");
-                scrumItems = showEpics();
-                for (ScrumItem item : scrumItems) {;
+                epicList = showEpics();
+                for (ScrumItem item : epicList) {;
                     if (item instanceof Epic) {
                         System.out.println(item.getId() + ": " + item.getBeschrijving());
                     }
@@ -80,8 +81,8 @@ public class Main {
 
             boolean manageEpic = true;
             while (manageEpic) {
-                showEpicDetails(epicId);
-                for (ScrumItem item : scrumItems) {
+                userStoryList = showEpicDetails(epicId);
+                for (ScrumItem item : userStoryList) {
                     if (item instanceof UserStory) {
                         System.out.println(item.getId() + ": " + item.getBeschrijving());
                     }
@@ -91,7 +92,7 @@ public class Main {
                 switch (command) {
                     case "/showchat":
                         Epic selectedEpic = null;
-                        for (ScrumItem item : scrumItems) {
+                        for (ScrumItem item : epicList) {
                             if (item instanceof Epic && item.getId() == epicId) {
                                 selectedEpic = (Epic) item;
                                 break;
@@ -136,9 +137,9 @@ public class Main {
         }
     }
 
-    private static void showEpicDetails(int epicId) {
+    private static ArrayList<ScrumItem> showEpicDetails(int epicId) {
         System.out.println("Details van epic met ID " + epicId + ":");
-
+        ArrayList<ScrumItem> userstories = new ArrayList<>();
         try (Connection conn = DatabaseConnection.connectDatabase();
              PreparedStatement stmt = conn.prepareStatement("SELECT beschrijving FROM epic WHERE epic_id = ?")) {
 
@@ -159,12 +160,12 @@ public class Main {
                 int chatroomId = stories.getInt("chatroom");
                 Chatroom chatroom = new Chatroom(chatroomId);
                 UserStory userStory = new UserStory(us_id, beschrijving, trelloID, chatroom);
-                scrumItems.add(userStory);
+                userstories.add(userStory);
             }
         } catch (SQLException e) {
             System.out.println("Fout bij het ophalen van epic details: " + e.getMessage());
         }
-
+        return userstories;
     }
 
     private static Chatroom makeChat(int chatroomID) {
