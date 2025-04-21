@@ -1,6 +1,9 @@
 import java.net.IDN;
 import java.sql.*;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Scanner;
 
@@ -20,7 +23,7 @@ public class Main {
             while (running) {
                 System.out.println("Voer het ID van een epic in  of type /addEpic om een nieuwe epic toe te voegen:\n" +
                         "type /exit om het programma af te sluiten");
-                scrumItems = showEpics();;
+                scrumItems = showEpics();
                 for (ScrumItem item : scrumItems) {;
                     if (item instanceof Epic) {
                         System.out.println(item.getId() + ": " + item.getBeschrijving());
@@ -68,15 +71,16 @@ public class Main {
         return chatroom;
     }
 
-    private static void checkEpicInput(String input, Gebruiker gebruiker) {
+    private static void checkEpicInput(String input, Gebruiker gebruiker) throws SQLException {
         Scanner scanner = new Scanner(System.in);
         if (input.equals("/addEpic")) {
             addEpic(gebruiker);
         } else if (input.matches("\\d+")) {
             int epicId = Integer.parseInt(input);
+
             boolean manageEpic = true;
             while (manageEpic) {
-                scrumItems  = showEpicDetails(epicId);
+                showEpicDetails(epicId);
                 for (ScrumItem item : scrumItems) {
                     if (item instanceof UserStory) {
                         System.out.println(item.getId() + ": " + item.getBeschrijving());
@@ -86,7 +90,37 @@ public class Main {
                 String command = scanner.nextLine();
                 switch (command) {
                     case "/showchat":
+                        Epic selectedEpic = null;
+                        for (ScrumItem item : scrumItems) {
+                            if (item instanceof Epic && item.getId() == epicId) {
+                                selectedEpic = (Epic) item;
+                                break;
+                            }
+                        }
+                        if (selectedEpic != null) {
+                            selectedEpic.setChatroom(makeChat(selectedEpic.getChatroom().getChat_id()));
+                            selectedEpic.toonChatroom();
+                            boolean texting = true;
+                            while (texting){
+                                System.out.println("Verstuur een bericht of type /back:");
+                                String berichtTekst = scanner.nextLine();
+                                if (berichtTekst.equals("/back")) {
+                                    texting = false;
+                                    break;
+                                }
+                                ZonedDateTime tijdstip = ZonedDateTime.now();
+                                Bericht bericht = new Bericht(0, berichtTekst, gebruiker, tijdstip, selectedEpic.getChatroom().getChat_id());
+                                selectedEpic.getChatroom().slaBerichtOp(bericht);
+                            }
+                            System.out.println("Verstuur nu een bericht of type /back:");
+                            String berichtTekst = scanner.nextLine();
+                            ZonedDateTime tijdstip = ZonedDateTime.now();
+                            Bericht bericht = new Bericht(0, berichtTekst, gebruiker, tijdstip, selectedEpic.getChatroom().getChat_id());
+                            getChatroom(selectedEpic.getChatroom().getChat_id()).slaBerichtOp(bericht);
 
+                        } else {
+                            System.out.println("Epic niet gevonden.");
+                        }
                         break;
                     case "/addUserStory":
                         addUserStory(epicId);
@@ -103,9 +137,9 @@ public class Main {
         }
     }
 
-    private static ArrayList<ScrumItem> showEpicDetails(int epicId) {
+    private static void showEpicDetails(int epicId) {
         System.out.println("Details van epic met ID " + epicId + ":");
-        ArrayList<ScrumItem> userstories = new ArrayList<>();
+
         try (Connection conn = DatabaseConnection.connectDatabase();
              PreparedStatement stmt = conn.prepareStatement("SELECT beschrijving FROM epic WHERE epic_id = ?")) {
 
@@ -119,42 +153,47 @@ public class Main {
             PreparedStatement storyStmt = conn.prepareStatement("SELECT us_id, beschrijving, trelloID, chatroom  FROM userstory WHERE epic_id = ?");
             storyStmt.setInt(1, epicId);
             ResultSet stories = storyStmt.executeQuery();
-            while (rs.next()) {
-                int us_id = rs.getInt("us_id");
-                String beschrijving = rs.getString("beschrijving");
-                String trelloID = rs.getString("trelloID");
-                int chatroomId = rs.getInt("chatroom");
+            while (stories.next()) {
+                int us_id = stories.getInt("us_id");
+                String beschrijving = stories.getString("beschrijving");
+                String trelloID = stories.getString("trelloID");
+                int chatroomId = stories.getInt("chatroom");
                 Chatroom chatroom = new Chatroom(chatroomId);
                 UserStory userStory = new UserStory(us_id, beschrijving, trelloID, chatroom);
-                userstories.add(userStory);
+                scrumItems.add(userStory);
             }
         } catch (SQLException e) {
             System.out.println("Fout bij het ophalen van epic details: " + e.getMessage());
         }
-        return userstories;
+
     }
 
-    private static Chatroom makeChat(int epicId) {
-        Chatroom chatroom = new Chatroom(0);
+    private static Chatroom makeChat(int chatroomID) {
+        Chatroom chatroom = new Chatroom(chatroomID);
         try (Connection conn = DatabaseConnection.connectDatabase();
              PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT b.b_id, b.tekst, b.tijdstip, b.chatroom g.naam, g.u_id  FROM bericht b JOIN gebruiker g ON c.gebruiker_id = g.u_id " +
-                             "WHERE c.chatroom_id = (SELECT chatroom FROM epic WHERE epic_id = ?)");) {
+                     "SELECT b.b_id, b.tekst, b.tijdstip, g.naam, g.u_id, b.chat_id FROM bericht b " +
+                             "JOIN gebruiker g ON b.auteur = g.u_id " +
+                             "WHERE b.chat_id = ? ORDER BY b.tijdstip ASC");) {
 
-            stmt.setInt(1, epicId);
+            stmt.setInt(1, chatroomID);
             ResultSet rs = stmt.executeQuery();
             System.out.println("Chatroom berichten:");
             while (rs.next()) {
                 int berichtId = rs.getInt("b_id");
                 String berichttekst = rs.getString("tekst");
-                String tijdstip = rs.getString("tijdstip");
-                int gebruikerId = rs.getInt("u_id");
 
-                ZonedDateTime tijdstipZoned = ZonedDateTime.parse(tijdstip);
+                int gebruikerId = rs.getInt("u_id");
                 String naam = rs.getString("naam");
 
-                int chatroomId = Integer.parseInt(rs.getString("chatroom"));
-                chatroom.setChat_id(chatroomId);
+                String tijdstip = rs.getString("tijdstip");
+
+                LocalDateTime localDateTime = LocalDateTime.parse(tijdstip, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                ZonedDateTime tijdstipZoned = localDateTime.atZone(ZoneId.systemDefault());
+
+
+
+                int chatroomId = rs.getInt("chat_id");
                 Gebruiker auteur = new Gebruiker(gebruikerId, naam);
                 Bericht bericht = new Bericht(berichtId, berichttekst, auteur, tijdstipZoned, chatroomId);
                 chatroom.voegBerichtToe(bericht);
