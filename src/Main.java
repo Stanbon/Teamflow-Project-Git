@@ -16,8 +16,8 @@ public class Main {
 
         if (gebruiker != null) {
             System.out.println("Welkom, " + gebruiker.getNaam() + "!");
-            boolean epics = true;
-            while (epics) {
+            boolean running = true;
+            while (running) {
                 System.out.println("Voer het ID van een epic in  of type /addEpic om een nieuwe epic toe te voegen:\n" +
                         "type /exit om het programma af te sluiten");
                 scrumItems = showEpics();;
@@ -29,7 +29,7 @@ public class Main {
                 String input = scanner.nextLine();
                 if (input.equals("/exit")) {
                     System.out.println("Tot ziens!");
-                    epics = false;
+                    running = false;
                     break;
                 }
                 checkEpicInput(input, gebruiker);
@@ -52,7 +52,7 @@ public class Main {
                 String beschrijving = rs.getString("beschrijving");
                 String trelloID = rs.getString("trelloID");
                 int chatroomID = rs.getInt("chatroom");
-                Chatroom chatroom = getChatroom(chatroomID);
+                Chatroom chatroom = new Chatroom(chatroomID);
 
                 epics.add(new Epic(id, beschrijving, trelloID, chatroom));
 
@@ -64,21 +64,7 @@ public class Main {
     }
 
     private static Chatroom getChatroom(int chatroomID) {
-        Chatroom chatroom = null;
-        try (Connection conn = DatabaseConnection.connectDatabase();
-             PreparedStatement stmt = conn.prepareStatement("SELECT * FROM chatroom WHERE chatroom_id = ?")) {
-
-            stmt.setInt(0, chatroomID);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next()) {
-                int id = rs.getInt("chatroom_id");
-                chatroom = new Chatroom(id);
-            } else {
-                System.out.println("Geen chatroom gevonden met ID: " + chatroomID);
-            }
-        } catch (SQLException e) {
-            System.out.println("Fout bij het ophalen van de chatroom: " + e.getMessage());
-        }
+        Chatroom chatroom = makeChat(chatroomID);
         return chatroom;
     }
 
@@ -90,12 +76,17 @@ public class Main {
             int epicId = Integer.parseInt(input);
             boolean manageEpic = true;
             while (manageEpic) {
-                showEpicDetails(epicId);
+                scrumItems  = showEpicDetails(epicId);
+                for (ScrumItem item : scrumItems) {
+                    if (item instanceof UserStory) {
+                        System.out.println(item.getId() + ": " + item.getBeschrijving());
+                    }
+                }
                 System.out.println("Opties: /showchat, /addUserStory, /back of selecteer een User story van de lijst:");
                 String command = scanner.nextLine();
                 switch (command) {
                     case "/showchat":
-                        Chatroom chatroom = makeChat(epicId);
+
                         break;
                     case "/addUserStory":
                         addUserStory(epicId);
@@ -112,8 +103,9 @@ public class Main {
         }
     }
 
-    private static void showEpicDetails(int epicId) {
+    private static ArrayList<ScrumItem> showEpicDetails(int epicId) {
         System.out.println("Details van epic met ID " + epicId + ":");
+        ArrayList<ScrumItem> userstories = new ArrayList<>();
         try (Connection conn = DatabaseConnection.connectDatabase();
              PreparedStatement stmt = conn.prepareStatement("SELECT beschrijving FROM epic WHERE epic_id = ?")) {
 
@@ -124,15 +116,22 @@ public class Main {
             }
 
             System.out.println("User stories:");
-            PreparedStatement storyStmt = conn.prepareStatement("SELECT beschrijving FROM userstory WHERE epic_id = ?");
+            PreparedStatement storyStmt = conn.prepareStatement("SELECT us_id, beschrijving, trelloID, chatroom  FROM userstory WHERE epic_id = ?");
             storyStmt.setInt(1, epicId);
             ResultSet stories = storyStmt.executeQuery();
-            while (stories.next()) {
-                System.out.println(stories.getString("us_id") + " - " + stories.getString("beschrijving"));
+            while (rs.next()) {
+                int us_id = rs.getInt("us_id");
+                String beschrijving = rs.getString("beschrijving");
+                String trelloID = rs.getString("trelloID");
+                int chatroomId = rs.getInt("chatroom");
+                Chatroom chatroom = new Chatroom(chatroomId);
+                UserStory userStory = new UserStory(us_id, beschrijving, trelloID, chatroom);
+                userstories.add(userStory);
             }
         } catch (SQLException e) {
             System.out.println("Fout bij het ophalen van epic details: " + e.getMessage());
         }
+        return userstories;
     }
 
     private static Chatroom makeChat(int epicId) {
@@ -142,7 +141,7 @@ public class Main {
                      "SELECT b.b_id, b.tekst, b.tijdstip, b.chatroom g.naam, g.u_id  FROM bericht b JOIN gebruiker g ON c.gebruiker_id = g.u_id " +
                              "WHERE c.chatroom_id = (SELECT chatroom FROM epic WHERE epic_id = ?)");) {
 
-            stmt.setInt(0, epicId);
+            stmt.setInt(1, epicId);
             ResultSet rs = stmt.executeQuery();
             System.out.println("Chatroom berichten:");
             while (rs.next()) {
@@ -171,17 +170,49 @@ public class Main {
         System.out.println("Voer de beschrijving in van de user story:");
         String beschrijving = scanner.nextLine();
 
-        try (Connection conn = DatabaseConnection.connectDatabase();
-             PreparedStatement stmt = conn.prepareStatement(
-                     "INSERT INTO userstory (beschrijving, epic_id) VALUES (?, ?)");) {
+        System.out.println("Voer de TrelloID in:");
+        String trelloID = scanner.nextLine();
 
-            stmt.setString(1, beschrijving);
-            stmt.setInt(2, epicId);
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = DatabaseConnection.connectDatabase();
+            conn.setAutoCommit(false);
+
+            String chatroomSQL = "INSERT INTO chatroom () VALUES ()";
+            stmt = conn.prepareStatement(chatroomSQL, Statement.RETURN_GENERATED_KEYS);
             stmt.executeUpdate();
-            System.out.println("User story toegevoegd.");
 
+            rs = stmt.getGeneratedKeys();
+            int chatroomId;
+            if (rs.next()) {
+                chatroomId = rs.getInt(1);
+            } else {
+                throw new SQLException("Chatroom aanmaken mislukt.");
+            }
+            rs.close();
+            stmt.close();
+
+            String epicSQL = "INSERT INTO userstory (epic_id, beschrijving, trelloID, chatroom) VALUES (?, ?, ?, ?)";
+            stmt = conn.prepareStatement(epicSQL, Statement.RETURN_GENERATED_KEYS);
+            stmt.setInt(1, epicId);
+            stmt.setString(2, beschrijving);
+            stmt.setString(3, trelloID);
+            stmt.setInt(4, chatroomId);
+            stmt.executeUpdate();
+
+            rs = stmt.getGeneratedKeys();
+            if (rs.next()) {
+                int userstoryID = rs.getInt(1);
+                System.out.println("Nieuwe userstory aangemaakt: " + beschrijving + " (ID: " + userstoryID + ")");
+            }
+
+            conn.commit();
         } catch (SQLException e) {
-            System.out.println("Fout bij het toevoegen van user story: " + e.getMessage());
+            System.out.println("Fout bij het toevoegen van de user story: " + e.getMessage());
+            try { if (conn != null) conn.rollback(); } catch (SQLException ignored) {}
         }
     }
 
@@ -231,10 +262,6 @@ public class Main {
         } catch (SQLException e) {
             System.out.println("Fout bij het toevoegen van de epic: " + e.getMessage());
             try { if (conn != null) conn.rollback(); } catch (SQLException ignored) {}
-        } finally {
-            try { if (rs != null) rs.close(); } catch (SQLException ignored) {}
-            try { if (stmt != null) stmt.close(); } catch (SQLException ignored) {}
-            try { if (conn != null) conn.setAutoCommit(true); conn.close(); } catch (SQLException ignored) {}
         }
     }
 
@@ -273,10 +300,6 @@ public class Main {
 
         } catch (SQLException e) {
             System.out.println("Fout bij het controleren van de naam in de database: " + e.getMessage());
-        } finally {
-            try { if (rs != null) rs.close(); } catch (SQLException ignored) {}
-            try { if (stmt != null) stmt.close(); } catch (SQLException ignored) {}
-            try { if (conn != null) conn.close(); } catch (SQLException ignored) {}
         }
         return null;
     }
