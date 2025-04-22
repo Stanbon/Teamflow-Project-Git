@@ -1,4 +1,3 @@
-import java.net.IDN;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -7,10 +6,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Scanner;
 
+import static java.lang.Integer.parseInt;
+
 public class Main {
 
     static ArrayList<ScrumItem> epicList;
     static ArrayList<ScrumItem> userStoryList;
+    static ArrayList<ScrumItem> takenList;
 
     public static void main(String[] args) throws SQLException {
         Scanner scanner = new Scanner(System.in);
@@ -20,8 +22,7 @@ public class Main {
 
         if (gebruiker != null) {
             System.out.println("Welkom, " + gebruiker.getNaam() + "!");
-            boolean running = true;
-            while (running) {
+            while (true) {
                 System.out.println("Voer het ID van een epic in  of type /addEpic om een nieuwe epic toe te voegen:\n" +
                         "type /exit om het programma af te sluiten");
                 epicList = showEpics();
@@ -33,7 +34,7 @@ public class Main {
                 String input = scanner.nextLine();
                 if (input.equals("/exit")) {
                     System.out.println("Tot ziens!");
-                    running = false;
+
                     break;
                 }
                 checkEpicInput(input, gebruiker);
@@ -77,7 +78,7 @@ public class Main {
         if (input.equals("/addEpic")) {
             addEpic(gebruiker);
         } else if (input.matches("\\d+")) {
-            int epicId = Integer.parseInt(input);
+            int epicId = parseInt(input);
 
             boolean manageEpic = true;
             while (manageEpic) {
@@ -129,12 +130,178 @@ public class Main {
                         manageEpic = false;
                         break;
                     default:
-                        System.out.println("Ongeldige optie.");
+                        if (command.matches("\\d+")) {
+                            int userStoryId = parseInt(command);
+                            boolean manageUserStory = true;
+                            while (manageUserStory) {
+                                for (ScrumItem item : userStoryList) {
+                                    if (item instanceof UserStory && item.getId() == userStoryId) {
+                                        UserStory selectedUserStory = (UserStory) item;
+                                        showUserStoryDetails(selectedUserStory, gebruiker);
+                                    }
+                                }
+                                if (manageUserStory) {
+                                    System.out.println("User story niet gevonden.");
+                                    break;
+                                }
+                            }
+
+                        } else {
+                            System.out.println("Ongeldige invoer. Probeer het opnieuw.");
+                        }
                 }
             }
         } else {
             System.out.println("Ongeldige invoer. Probeer het opnieuw.");
         }
+    }
+
+    private static void showUserStoryDetails(UserStory userStory, Gebruiker gebruiker) throws SQLException {
+        boolean userStoriesShow = true;
+        while (userStoriesShow){
+            System.out.println("Details van user story met ID " + userStory.getId() + ":");
+            System.out.println("Beschrijving: " + userStory.getBeschrijving());
+            System.out.println("Opties: /showchat, /addTaak, /back");
+            takenList = getTaken(userStory.getId());
+            Scanner scanner = new Scanner(System.in);
+            String command = scanner.nextLine();
+            switch (command) {
+                case "/showchat":
+                    userStory.setChatroom(makeChat(userStory.getChatroom().getChat_id()));
+                    userStory.toonChatroom();
+                    while (true){
+                        System.out.println("Verstuur een bericht of type /back om terug te gaan:");
+                        String berichtTekst = scanner.nextLine();
+                        if (berichtTekst.equals("/back")) {
+                            break;
+
+                        }
+
+                        ZonedDateTime tijdstip = ZonedDateTime.now();
+                        Bericht bericht = new Bericht(0, berichtTekst, gebruiker, tijdstip, userStory.getChatroom().getChat_id());
+                        userStory.getChatroom().slaBerichtOp(bericht);
+                    }
+                    break;
+                case "/addTaak":
+                     addTaak(userStory);
+                    break;
+                case "/back":
+                    userStoriesShow = false;
+                    break;
+                default:
+                    if (command.matches("\\d+")) {
+                        int taakId = parseInt(command);
+                        boolean manageTaak = true;
+                        while (manageTaak) {
+                            for (ScrumItem item : takenList) {
+                                if (item instanceof Taak && item.getId() == taakId) {
+                                    Taak selectedTaak = (Taak) item;
+                                    selectedTaak.setChatroom(makeChat(selectedTaak.getChatroom().getChat_id()));
+                                    selectedTaak.toonChatroom();
+                                    while (true){
+                                        System.out.println("Verstuur een bericht of type /back om terug te gaan:");
+                                        String berichtTekst = scanner.nextLine();
+                                        if (berichtTekst.equals("/back")) {
+                                            manageTaak = false;
+                                            break;
+                                        }
+
+                                        ZonedDateTime tijdstip = ZonedDateTime.now();
+                                        Bericht bericht = new Bericht(0, berichtTekst, gebruiker, tijdstip, selectedTaak.getChatroom().getChat_id());
+                                        selectedTaak.getChatroom().slaBerichtOp(bericht);
+                                    }
+
+                                }
+                            }
+                            if (manageTaak) {
+                                System.out.println("Taak niet gevonden.");
+                                break;
+                            }
+                        }
+                    } else
+                    System.out.println("Ongeldige invoer. Probeer het opnieuw.");
+            }
+        }
+
+
+
+
+
+    }
+
+    private static void addTaak(UserStory userStory) {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Voer de beschrijving in van de taak:");
+        String beschrijving = scanner.nextLine();
+
+        System.out.println("Voer de TrelloID in:");
+        String trelloID = scanner.nextLine();
+
+        Connection conn = null;
+        PreparedStatement stmt = null;
+        ResultSet rs = null;
+
+        try {
+            conn = DatabaseConnection.connectDatabase();
+            conn.setAutoCommit(false);
+
+            String chatroomSQL = "INSERT INTO chatroom () VALUES ()";
+            stmt = conn.prepareStatement(chatroomSQL, Statement.RETURN_GENERATED_KEYS);
+            stmt.executeUpdate();
+
+            rs = stmt.getGeneratedKeys();
+            int chatroomId;
+            if (rs.next()) {
+                chatroomId = rs.getInt(1);
+            } else {
+                throw new SQLException("Chatroom aanmaken mislukt.");
+            }
+            rs.close();
+            stmt.close();
+
+            String taakSQL = "INSERT INTO taak (userStory, beschrijving, trelloID, chatroom) VALUES (?, ?, ?, ?)";
+            stmt = conn.prepareStatement(taakSQL, Statement.RETURN_GENERATED_KEYS);
+            stmt.setInt(1, userStory.getId());
+            stmt.setString(2, beschrijving);
+            stmt.setString(3, trelloID);
+            stmt.setInt(4, chatroomId);
+            stmt.executeUpdate();
+
+            rs = stmt.getGeneratedKeys();
+            if (rs.next()) {
+                int taakId = rs.getInt(1);
+                System.out.println("Nieuwe taak aangemaakt: " + beschrijving + " (ID: " + taakId + ")");
+            }
+
+            conn.commit();
+        } catch (SQLException e) {
+            System.out.println("Fout bij het toevoegen van de taak: " + e.getMessage());
+            try { if (conn != null) conn.rollback(); } catch (SQLException ignored) {}
+        }
+    }
+
+    private static ArrayList<ScrumItem> getTaken(int id) {
+        ArrayList<ScrumItem> taken = new ArrayList<>();
+        try (Connection conn = DatabaseConnection.connectDatabase();
+             PreparedStatement stmt = conn.prepareStatement("SELECT taak_id, beschrijving, trelloID, chatroom FROM taak WHERE userStory = ?")) {
+            stmt.setInt(1, id);
+
+            ResultSet rs = stmt.executeQuery();
+            System.out.println("Taken:");
+            while (rs.next()) {
+                int taakId = rs.getInt("taak_id");
+                String beschrijving = rs.getString("beschrijving");
+                String trelloID = rs.getString("trelloID");
+                int chatroomId = rs.getInt("chatroom");
+                Chatroom chatroom = new Chatroom(chatroomId);
+                Taak taak = new Taak(taakId, beschrijving, trelloID, chatroom, null);
+                taken.add(taak);
+                System.out.println(taak.getId() + ": " + taak.getBeschrijving());
+            }
+        } catch (SQLException e) {
+            System.out.println("Fout bij het ophalen van taken: " + e.getMessage());
+        }
+        return taken;
     }
 
     private static ArrayList<ScrumItem> showEpicDetails(int epicId) {

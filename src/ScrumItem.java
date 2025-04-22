@@ -39,7 +39,6 @@ public abstract class ScrumItem{
 
     public abstract void toonChatroom();
 
-    public abstract void voegUserToe(Chatroom chatroom);
 
 
 
