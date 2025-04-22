@@ -24,9 +24,4 @@ public class Epic extends ScrumItem{
     }
 
 
-    @Override
-   public void voegUserToe(Chatroom chatroom){
-        // Implementatie voor het toevoegen van een gebruiker aan de chat
-        System.out.println("Gebruiker toegevoegd aan epic: " + beschrijving);
-    }
 }
